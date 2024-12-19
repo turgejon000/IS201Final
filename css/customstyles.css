@@ -1,0 +1,39 @@
+
+
+        body {
+            background-color: #ADD8E6; /* Light blue background */
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            
+        }
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        h2 {
+            color: #0a0101;
+        }
+        section {
+            margin-bottom: 20px;
+        }
+        ul {
+            list-style-type: square;
+        }
+        ol {
+            margin-left: 20px;
+        }
+        .content {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        iframe {
+            display: block;
+            margin: 0 auto;
+            margin-top: 20px;
+        }
+        
+        

@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Basketball Game</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #bb9fce;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            flex-direction: column;
+        }
+        canvas {
+            border: 2px solid black;
+        }
+        #gameCanvas {
+            background-color: #c4a072;
+        }
+        .scoreboard {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 24px;
+            color: black;
+        }
+        h1 {
+            position: absolute;
+            top: 20px;
+            font-size: 32px;
+            color: black;
+        }
+        .trajectory-input {
+            position: absolute;
+            top: 100px;
+            left: 150px;
+            font-size: 18px;
+            color: black;
+        }
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 16px;
+            color: black;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Let's Play Basketball</h1>
+<canvas id="gameCanvas" width="800" height="600"></canvas>
+<div class="scoreboard">
+    Score: <span id="score">0</span>
+</div>
+
+<!-- Trajectory input textboxes -->
+<div class="trajectory-input">
+    <label for="angleInput">Angle:</label>
+    <input type="number" id="angleInput" value="0" step="1" min="-90" max="90">
+    <br>
+    <label for="distanceInput">Distance:</label>
+    <input type="number" id="distanceInput" value="100" step="1" min="10" max="100">
+</div>
+
+<!-- Legend -->
+<div class="legend">
+    <p>Input a number 0-180 to indicate the angle of your shot. Input Distance (up to 100) to increase the power of your shot. Press the space bar to shoot!</p>
+</div>
+
+<script>
+// Game variables
+let canvas = document.getElementById('gameCanvas');
+let ctx = canvas.getContext('2d');
+let score = 0;
+
+// Ball properties (start in the center of the canvas)
+let ball = {
+    x: Math.random() * (canvas.width - 40) + 20, // Random X within bounds
+    y: Math.random() * (canvas.height - 40) + 20, // Random Y within bounds
+    radius: 20,
+    speedX: 0,
+    speedY: 0,
+    isInAir: false
+};
+
+// Hoop and backboard properties
+let hoop = {
+    x: 760,
+    y: 200,  // Position adjusted for side view
+    width: 50,
+    height: 10,
+    diameter: 50,
+    backboardWidth: 20,
+    backboardHeight: 170, // Taller for the side view
+    poleHeight: 340 // Green pole height
+};
+
+// Aiming parameters (initial values from inputs)
+let trajectoryAngle = parseFloat(document.getElementById('angleInput').value) * Math.PI / 180; // Convert to radians
+let maxAimingDistance = parseInt(document.getElementById('distanceInput').value);  // Maximum length for the aiming line
+let trajectoryLineLength = maxAimingDistance;
+
+// Game mechanics
+let gravity = 0.5;
+let friction = 0.99;
+
+// Ball reset timer
+let resetTimer = null;
+
+// Update the ball position and check for interactions
+function updateGame() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Ball's shooting action
+    if (keys.space && !ball.isInAir) {
+        shootBall();
+    }
+
+// Apply gravity and friction when the ball is in the air
+if (ball.isInAir) {
+    ball.speedY += gravity;
+    ball.x += ball.speedX;
+    ball.y += ball.speedY;
+
+    // Ball hitting the ground (reset the ball here)
+    if (ball.y + ball.radius >= canvas.height) {
+        ball.y = canvas.height - ball.radius;
+        ball.speedY *= -0.9; // More bouncy effect
+        ball.speedX *= friction; // Slow down horizontal speed
+        resetBallAfterMiss(); // Reset the ball after touching the ground
+    }
+
+    // Prevent the ball from going off the left and right edges
+    if (ball.x - ball.radius <= 0) {
+        ball.x = ball.radius; // Ball hits the left edge
+        ball.speedX = Math.abs(ball.speedX) * 0.5; // Slow down horizontal motion with buffer
+    } else if (ball.x + ball.radius >= canvas.width) {
+        ball.x = canvas.width - ball.radius; // Ball hits the right edge
+        ball.speedX = -Math.abs(ball.speedX) * 0.5; // Slow down horizontal motion with buffer
+    }
+
+    // Prevent the ball from going off the top edge
+    if (ball.y - ball.radius <= 0) {
+        ball.y = ball.radius; // Ball hits the top edge
+        ball.speedY = Math.abs(ball.speedY) * 0.5; // Slow down the vertical motion
+    }
+
+    // Prevent the ball from going off the bottom edge
+    if (ball.y + ball.radius >= canvas.height) {
+        ball.y = canvas.height - ball.radius; // Ball hits the bottom edge
+        ball.speedY = -Math.abs(ball.speedY) * 0.5; // Slow down vertical speed at the bottom edge
+    }
+
+    // Check if the ball goes through the hoop (only add points when it does)
+    if (
+        ball.x + ball.radius > hoop.x - hoop.width / 2 &&
+        ball.x - ball.radius < hoop.x + hoop.width / 2 &&
+        ball.y - ball.radius < hoop.y + hoop.diameter / 2 &&
+        ball.y + ball.radius > hoop.y - hoop.diameter / 2
+    ) {
+        // Only add points if the ball has passed through the hoop and has not scored yet
+        if (!ball.hasScored) {
+            score += 2; // Score exactly 2 points for each successful shot
+            document.getElementById('score').textContent = score;
+            ball.hasScored = true; // Prevent multiple scores
+        }
+
+        // Simulate the ball going through the hoop by stopping horizontal movement
+        ball.speedX = 0; // Stop horizontal movement
+        ball.speedY = 3; // Apply downward speed to simulate falling into the hoop
+        ball.x = 750
+        ball.y = 250
+    }
+}
+
+// Reset the ball to a random position after it touches the ground or misses
+function resetBallAfterMiss() {
+    // Reset the ball after touching the ground (no score yet)
+    setTimeout(() => {
+        resetBall(); // Reset ball's position after touching the ground
+    }, 500); // Delay before resetting the ball
+}
+
+// Reset the ball to a random position on the left half of the screen
+function resetBall() {
+    // Randomly spawn on the left side of the screen (0 to canvas.width / 2)
+    ball.x = Math.random() * (canvas.width / 2 - 40) + 20; // Random X within left half of the canvas
+    ball.y = Math.random() * (canvas.height - 40) + 20; // Random Y within bounds
+    ball.speedX = 0;
+    ball.speedY = 0;
+    ball.isInAir = false;
+    ball.hasScored = false; // Reset scoring flag when ball is reset
+}
+    // Draw elements
+    drawBall();
+    drawHoop();
+    drawBackboard();
+    drawGreenPole();
+    requestAnimationFrame(updateGame);
+}
+
+// Draw the basketball (deep orange color)
+function drawBall() {
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+    ctx.fillStyle = '#FF8C00'; // Deep orange color
+    ctx.fill();
+    ctx.stroke();
+    ctx.closePath();
+}
+
+// Draw the hoop as a line (red color) attached to the bottom of the backboard
+function drawHoop() {
+    ctx.beginPath();
+    ctx.moveTo(hoop.x - hoop.width / 2, hoop.y); // Left side of the hoop
+    ctx.lineTo(hoop.x + hoop.width / 2, hoop.y); // Right side of the hoop
+    ctx.strokeStyle = '#FF0000'; // Red color
+    ctx.lineWidth = 5;
+    ctx.stroke();
+    ctx.closePath();
+}
+
+// Draw the vertical backboard (attached to the hoop)
+function drawBackboard() {
+    ctx.fillStyle = '#8B4513';  // Brown color for the backboard
+    ctx.fillRect(hoop.x - hoop.backboardWidth / 2+30, hoop.y - hoop.backboardHeight / 2-20, hoop.backboardWidth, hoop.backboardHeight);
+}
+
+// Draw the green pole connecting the backboard to the ground
+function drawGreenPole() {
+    ctx.fillStyle = '#008000';  // Green color for the pole
+    ctx.fillRect(hoop.x +30, hoop.y + hoop.backboardHeight / 2-20, 10, hoop.poleHeight);  // Vertical pole attached to the backboard's bottom
+}
+
+// Draw the shooting line
+function drawShootingLine() {
+    if (!ball.isInAir) {
+        let lineEndX = ball.x + Math.cos(trajectoryAngle) * trajectoryLineLength;
+        let lineEndY = ball.y + Math.sin(trajectoryAngle) * trajectoryLineLength;
+
+        ctx.beginPath();
+        ctx.moveTo(ball.x, ball.y);
+        ctx.lineTo(lineEndX, lineEndY);
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 5]);  // Dashed line
+        ctx.stroke();
+        ctx.closePath();
+    }
+}
+
+// Shoot the ball
+function shootBall() {
+    ball.isInAir = true;
+    let power = maxAimingDistance / 100; // Scale the speed based on the distance input
+    let speedMultiplier = 5;  // Make the distance 10 times more powerful
+    ball.speedX = Math.cos(trajectoryAngle) * 6 * power * speedMultiplier; // Shoot in the direction of the line
+    ball.speedY = Math.sin(trajectoryAngle) * -12 * power * speedMultiplier; // Shoot in the direction of the line
+}
+
+
+// Reset the ball to the starting position
+function resetBall() {
+    ball.x = Math.random() * (canvas.width - 40) + 20; // Random X within bounds
+    ball.y = Math.random() * (canvas.height - 40) + 20; // Random Y within bounds
+    ball.speedX = 0;
+    ball.speedY = 0;
+    ball.isInAir = false;
+}
+
+// Reset the ball after an unsuccessful shot
+function resetBallAfterMiss() {
+    if (resetTimer) {
+        clearTimeout(resetTimer);
+    }
+    resetTimer = setTimeout(resetBall, 500); // Reset after 0.5 seconds
+}
+
+// Event listener for key press to shoot ball
+let keys = { space: false };
+document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') {
+        keys.space = true;
+    }
+});
+
+document.addEventListener('keyup', (e) => {
+    if (e.code === 'Space') {
+        keys.space = false;
+    }
+});
+
+// Update trajectory inputs
+document.getElementById('angleInput').addEventListener('input', (e) => {
+    trajectoryAngle = parseFloat(e.target.value) * Math.PI / 180;
+});
+
+document.getElementById('distanceInput').addEventListener('input', (e) => {
+    maxAimingDistance = Math.min(parseInt(e.target.value), 100); // Ensure max distance is 100
+    trajectoryLineLength = maxAimingDistance;
+});
+
+// Start the game loop
+updateGame();
+</script>
+
+</body>
+</html>
